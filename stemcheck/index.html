@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stem-Check – ARTISTFAKT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: ruhig, präzise, wie ein gutes Studio-Messgerät
+   IDEA: Kanalzug-Anzeige – jede Spur eine Zeile mit grünem/rotem Lämpchen
+   PICTURE: die Ablagefläche selbst, groß, danach die Spurliste
+   COLOUR: tiefes Graphit, ein Signalgrün, ein Signalrot
+   TYPE/LAYOUT: Manrope, eine Spalte bis 860px */
+:root{color-scheme:light dark;--bg:light-dark(#f4f4f2,#121315);--card:light-dark(#ffffff,#1b1d20);--ink:light-dark(#141518,#ecedef);--mute:light-dark(#5d6168,#9aa0a8);--line:light-dark(#e1e2e4,#2a2d31);--ok:#1f9d55;--bad:#d64040;--warn:#c98a00;--acc:light-dark(#141518,#ecedef)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Manrope,system-ui,sans-serif;overflow-x:clip}
+main{max-width:860px;margin:0 auto;padding:clamp(24px,4vw,56px) max(4vw,16px) 64px}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.08;margin:0 0 8px;font-weight:800;text-wrap:balance}
+.lead{color:var(--mute);margin:0 0 24px;max-width:62ch}
+label.f{display:block;font-weight:600;margin:0 0 6px}
+input[type=text]{width:100%;font:inherit;font-size:16px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+input[type=text]:focus,button:focus-visible,.drop:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+.drop{margin:18px 0 12px;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:clamp(28px,6vw,56px) 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+.drop.over{border-color:var(--ok);background:light-dark(#eef8f1,#16241b)}
+.drop strong{display:block;font-size:20px;margin-bottom:6px}
+.drop span{color:var(--mute);font-size:14px}
+.btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:16px}
+button,.btn{font:inherit;font-weight:600;min-height:44px;padding:10px 18px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.btn.go{background:var(--ok);border-color:var(--ok);color:#fff}
+.hint{font-size:14px;color:var(--mute)}
+#urteil{margin:28px 0 16px;padding:20px 22px;border-radius:14px;background:var(--card);border:1px solid var(--line);display:none}
+#urteil.ok{border-color:var(--ok)}#urteil.bad{border-color:var(--bad)}
+#urteil h2{margin:0 0 8px;font-size:22px;line-height:1.2}
+#urteil ul{margin:8px 0 0;padding-left:20px}#urteil li{margin:4px 0}
+.spuren{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:none}
+.zeile{display:grid;grid-template-columns:14px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1.2fr) 52px;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);font-size:14px}
+.zeile:first-child{border-top:0}
+.kopf{font-weight:600;color:var(--mute);font-size:13px}
+.lamp{width:12px;height:12px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px color-mix(in srgb,var(--ok) 60%,transparent)}
+.lamp.bad{background:var(--bad);box-shadow:0 0 8px color-mix(in srgb,var(--bad) 60%,transparent)}
+.lamp.warn{background:var(--warn);box-shadow:none}
+.name{overflow-wrap:anywhere}.rolle{font-weight:600}.dauer{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.err{grid-column:2/-1;color:var(--bad);font-size:13px;margin-top:-6px}
+.prog{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin:10px 0 0;display:none}.prog i{display:block;height:100%;width:0;background:var(--ok);transition:width .2s}
+details{margin-top:28px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px}
+summary{cursor:pointer;font-weight:600}
+@media(max-width:600px){.zeile{grid-template-columns:14px minmax(0,1fr) 48px}.zeile .fmt,.zeile .rolle{grid-column:2/3}.kopf{display:none}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>Stem-Check vor dem Upload</h1>
+<p class="lead">Zieh deine Spuren hierher und sieh sofort, ob alles passt. Deine Dateien bleiben auf deinem Gerät, hier wird nichts hochgeladen.</p>
+
+<label class="f" for="artist">Dein Artistname (wie beim Kauf)</label>
+<input type="text" id="artist" placeholder="z. B. Max B" autocomplete="off">
+
+<div class="drop" id="drop" tabindex="0" role="button" aria-label="Dateien auswählen oder hierher ziehen">
+  <strong>Ordner, ZIP oder Dateien hierher ziehen</strong>
+  <span>Ein Song pro Prüfung · WAV-Vocals und Beat</span>
+  <div class="btns">
+    <button type="button" id="bOrdner">Ordner wählen</button>
+    <button type="button" id="bDateien">Dateien oder ZIP wählen</button>
+  </div>
+  <div class="prog" id="prog"><i></i></div>
+</div>
+<input type="file" id="iOrdner" webkitdirectory multiple hidden>
+<input type="file" id="iDateien" multiple accept=".wav,.mp3,.zip,.aif,.aiff,.flac,.m4a,audio/*" hidden>
+<p class="hint">Tipp: Benenne die Spuren schon in deinem Programm, z. B. „Main“, „Double 1“, „Hook Main“, „Adlib 1“, „Beat“. Leerzeichen und Groß-/Kleinschreibung sind egal.</p>
+
+<section id="urteil" aria-live="polite"></section>
+<section class="spuren" id="spuren"></section>
+
+<details>
+<summary>Was wird geprüft?</summary>
+<ul>
+<li>Vocals als WAV mit 24 Bit (oder 32 Bit), 44,1 oder 48 kHz, alle Dateien gleich</li>
+<li>Genau ein Beat als Stereo-Datei (WAV oder MP3 ab 320 kbit/s)</li>
+<li>Höchstens 15 Vocal-Spuren (Ergänzungsspuren ohne Überschneidung werden automatisch zusammengelegt) und höchstens 4:00 Minuten</li>
+<li>Alle Spuren gleich lang (ab Takt 1 bis zum gleichen Ende)</li>
+<li>Kein Clipping, keine leeren Spuren, keine Projektdateien</li>
+<li>Jede Spur einer Rolle zuordenbar (Main, Double, Backup, Hook, Adlib, Safety, Beat)</li>
+</ul>
+<p class="hint">Unsicher beim Export? Such bei YouTube nach „Stems exportieren“ und dem Namen deines Programms, oder frag eine KI nach den Schritten. Ausführliche Anleitung: <a href="https://tally.so/r/6DZD75">tally.so/r/6DZD75</a></p>
+</details>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+{
+const UPLOAD = "https://www.dropbox.com/request/qwo8h2qxo182ylkq2bso";
+const ROLLEN = ["Main","Double1","Double2","Backup1","Backup2","HookMain","HookDouble1","HookDouble2","HookBacking1","HookBacking2","Adlib1","Adlib2","Safety1","Safety2","Safety3","Beat"];
+const RN = Object.fromEntries(ROLLEN.map(r => [r.toLowerCase(), r]));
+const MAX = {Double:2,Backup:2,HookDouble:2,HookBacking:2,Adlib:2,Safety:3};
+const HOOK = ["hook","chorus","refrain","hk"];
+const SYN = [
+ [["main","lead","leadvocal","leadvocals","leadvox","mainvocal","mainvocals","mainvox","vocal","vocals","vox","voc","haupt","hauptspur","hauptstimme","strophe","verse","part","rap","main1"],"Main","HookMain"],
+ [["double","doubles","dbl","dub","dopplung","doppel","dbls","stack","doubled"],"Double","HookDouble"],
+ [["backup","backups","backing","backings","bv","bvs","bgv","harmo","harmony","harmonie","harmonies","chor","choir","backingvocal","backingvocals","background"],"Backup","HookBacking"],
+ [["adlib","adlibs","adl","adlips","adlip","ad"],"Adlib","Adlib"],
+ [["safety","safe","extra","ausweich","overlap"],"Safety","Safety"]];
+const BEAT = ["beat","instrumental","instr","inst","instrumentalbeat","playback","riddim","beatstereo","instrumentals","beat2mix","2mix","twomix","stereomix"];
+const AUDIO = [".wav",".mp3",".aif",".aiff",".flac",".m4a",".aac",".ogg",".wma",".caf"];
+const norm = s => s.toLowerCase().replace(/[ \-_.']/g, "");
+const $ = id => document.getElementById(id);
+
+function rolle(text){
+  const n = norm(text); if(!n) return null;
+  if(RN[n]) return RN[n];
+  if(BEAT.includes(n)) return "Beat";
+  const m = n.match(/^(.*?)(\d+)$/); let rest = m ? m[1] : n; const nr = m ? m[2] : "";
+  let hook = false;
+  for(const h of HOOK){ if(rest.startsWith(h) && rest !== h){ hook = true; rest = rest.slice(h.length); break; } }
+  if(HOOK.includes(rest)) return "HookMain";
+  if((rest === "" || rest === "main") && hook) return "HookMain";
+  for(const [namen, part, hk] of SYN){
+    if(namen.includes(rest)){
+      const b = hook ? hk : part;
+      if(b === "Main" || b === "HookMain") return b;
+      if(nr && +nr >= 1 && +nr <= MAX[b]) return b + (+nr);
+      return nr ? null : b + "?";
+    }
+  }
+  return null;
+}
+function klassifiziere(name){
+  let s = name.replace(/\.[^.]+$/, "");
+  if(/\(\s*(stumm|mute|muted|leer)\s*\)|\bstumm\b|\bmuted?\b/i.test(s)) return {art:"leer"};
+  s = s.replace(/\s+-\s+Kopie.*$/i, "").replace(/^\s*\d{1,3}[\s_.\-]+/, "").replace(/[_\s]\d{1,2}$/, "")
+       .replace(/([a-z])([A-Z])/g, "$1 $2").replace(/([A-Za-z])(\d)/g, "$1 $2");
+  const lo = s.toLowerCase(), n = lo.replace(/[^a-z0-9äöü]/g, ""), w = lo.match(/[a-zäöü]+|\d+/g) || [];
+  if(/roughmix|rough|referenz|reference|mixdown|premaster/.test(n) || w.includes("ref")) return {art:"ref"};
+  if(/instrumental|instr|playback|riddim|beat|2mix|twomix/.test(n)) return {art:"beat"};
+  const sektion = /hook|chorus|refrain|hk/.test(n) ? "hook" : "part";
+  let typ, implizit = false;
+  if(/adlib|adlip|fillin|fill/.test(n) || w.includes("ad") || w.includes("adl")) typ = "adlib";
+  else if(/double|dbl|dub|dopp|stack/.test(n)) typ = "double";
+  else if(/backup|backing|bgv|harmo|chor|choir/.test(n) || w.includes("bv") || w.includes("bvs")) typ = "backup";
+  else if(/main|lead|vocal|vox|voc|haupt|rap/.test(n)) typ = "main";
+  else if(/part|verse|strophe|hook|chorus|refrain/.test(n)){ typ = /\b(l|r|links|rechts|left|right)\b/.test(lo) ? "double" : "main"; implizit = true; }
+  else return null;
+  const zusatz = /laut|extra|laidback|power|mitte|center|2\.0|prehook|fillin|fill|alt/.test(lo) || n.includes("prehook");
+  const nr = lo.match(/\b(\d)\b/);
+  const prio = 1 + (implizit ? 1 : 0) + (zusatz ? 1 : 0) + (nr && nr[1] !== "1" ? 1 : 0);
+  return {art:"vocal", sektion, typ, prio};
+}
+const ZIEL = {"part|main":"Main","part|double":"Double","part|backup":"Backup","hook|main":"HookMain","hook|double":"HookDouble","hook|backup":"HookBacking","part|adlib":"Adlib","hook|adlib":"Adlib"};
+const RANG = {Main:0,HookMain:1,Double:2,HookDouble:3,Backup:4,HookBacking:5,Adlib:6};
+function frei(name){
+  const s = name.replace(/\.[^.]+$/, "").replace(/\s*\(\d+\)/g, "").trim(), f = s.replace(/_\d{1,2}$/, "");
+  return /^\d{1,3}[\s_.\-]+/.test(s) || /\b(L|R|links|rechts|Mitte|stumm)\b/i.test(s) || (!f.includes("_") && /[a-z][A-Z]/.test(f) && !rolle(f));
+}
+function zerlege(datei){
+  if(frei(datei)) return null;
+  let s = datei.replace(/\.[^.]+$/, "").replace(/\s*\(\d+\)/g, "").trim().replace(/\s+[-–]\s+/g, "_");
+  const t = s.split("_").map(x => x.trim()).filter(Boolean);
+  if(!t.length) return null;
+  if(!rolle(t[t.length-1])){ const w = t[t.length-1].split(" "); for(let k=w.length-1;k>0;k--){ if(rolle(w.slice(0,k).join(" "))){ t[t.length-1] = w.slice(0,k).join(" "); break; } } }
+  for(let i=t.length-1;i>1;i--){ let r = rolle(t[i]); if(r){ const z = t.slice(i+1); if(r.endsWith("?") && z[0] && /^\d+$/.test(z[0])){ const r2 = rolle(r.slice(0,-1)+z[0]); if(r2) r = r2; } return {artist:t[0], song:t.slice(1,i).join("_"), rolle:r}; } }
+  for(let i=Math.min(t.length,2)-1;i>=0;i--){ const r = rolle(t.slice(i).join(" ")); if(r) return {artist:null, song:null, rolle:r}; }
+  return t.length >= 3 ? {artist:t[0], song:t.slice(1,-1).join("_"), rolle:null, text:t[t.length-1]} : {artist:null, song:null, rolle:null, text:t[t.length-1]};
+}
+function behaelter(name){
+  const s = name.replace(/\.zip$/i, "").replace(/\s*\(\d+\)/g, "").trim().replace(/\s+[-–]\s+/g, "_");
+  const t = s.split("_").map(x => x.trim()).filter(Boolean);
+  return t.length >= 2 ? {artist:t[0], song:t.slice(1).join("_")} : null;
+}
+
+/* ---------- Audio lesen ---------- */
+function wavInfo(buf){
+  const v = new DataView(buf); const tag = o => String.fromCharCode(v.getUint8(o),v.getUint8(o+1),v.getUint8(o+2),v.getUint8(o+3));
+  if(buf.byteLength < 12 || tag(0) !== "RIFF" && tag(0) !== "RF64" || tag(8) !== "WAVE") throw "keine gültige WAV-Datei";
+  let p = 12, fmt = null, data = null;
+  while(p + 8 <= buf.byteLength){
+    const id = tag(p); let size = v.getUint32(p+4, true);
+    if(id === "fmt "){ let f = v.getUint16(p+8,true); const ch = v.getUint16(p+10,true), rate = v.getUint32(p+12,true), bits = v.getUint16(p+22,true);
+      if(f === 0xFFFE && size >= 40) f = v.getUint16(p+32,true); fmt = {f, ch, rate, bits}; }
+    if(id === "data"){ if(size === 0xFFFFFFFF || p+8+size > buf.byteLength) size = buf.byteLength - p - 8; data = {start:p+8, len:size}; break; }
+    p += 8 + size + (size & 1);
+  }
+  if(!fmt || !data) throw "WAV-Datei unvollständig";
+  const bps = fmt.bits/8, frames = Math.floor(data.len / (bps*fmt.ch));
+  return {...fmt, data, dauer: frames / fmt.rate, frames};
+}
+function clipUndPegel(buf, w){
+  const v = new DataView(buf, w.data.start, Math.min(w.data.len, buf.byteLength - w.data.start));
+  const bps = w.bits/8, ch = w.ch, n = w.frames, lauf = new Array(ch).fill(0);
+  let peak = 0, clip = false;
+  const lies = w.f === 3 ? (o => w.bits === 64 ? v.getFloat64(o,true) : v.getFloat32(o,true))
+    : w.bits === 16 ? (o => v.getInt16(o,true)/32768)
+    : w.bits === 24 ? (o => { let x = v.getUint8(o) | (v.getUint8(o+1)<<8) | (v.getInt8(o+2)<<16); return x/8388608; })
+    : w.bits === 32 ? (o => v.getInt32(o,true)/2147483648)
+    : (o => (v.getUint8(o)-128)/128);
+  const grenze = w.f === 3 ? 0.9999 : (w.bits === 16 ? 32766/32768 : 0.99995);
+  const schritt = n > 6e6 ? 2 : 1;
+  for(let i=0;i<n;i+=schritt){
+    for(let c=0;c<ch;c++){
+      const a = Math.abs(lies((i*ch+c)*bps));
+      if(a > peak) peak = a;
+      if(a >= grenze){ if(++lauf[c] >= 3) clip = true; } else lauf[c] = 0;
+    }
+  }
+  return {peak, clip};
+}
+function mp3Info(buf){
+  const u = new Uint8Array(buf); let p = 0;
+  if(u[0]===0x49 && u[1]===0x44 && u[2]===0x33) p = 10 + ((u[6]&127)<<21|(u[7]&127)<<14|(u[8]&127)<<7|(u[9]&127));
+  const BR = [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320];
+  for(;p<u.length-4;p++){
+    if(u[p]===0xFF && (u[p+1]&0xE0)===0xE0){
+      const ver = (u[p+1]>>3)&3, lay = (u[p+1]>>1)&3, bi = u[p+2]>>4, mode = u[p+3]>>6;
+      if(ver === 3 && lay === 1 && bi > 0 && bi < 15){ const kbit = BR[bi]; return {kbit, ch: mode === 3 ? 1 : 2, dauer: (u.length - p) * 8 / (kbit*1000)}; }
+    }
+  }
+  throw "MP3 nicht lesbar";
+}
+
+/* ---------- Dateien einsammeln ---------- */
+let eintraege = [], quelle = null;
+async function vonDrop(items){
+  const out = []; quelle = null;
+  const lese = (entry, pfad) => new Promise(res => {
+    if(entry.isFile) entry.file(f => { out.push({name: f.name, pfad: pfad + f.name, file: f}); res(); }, () => res());
+    else { quelle = quelle || entry.name; const r = entry.createReader(); const alle = [];
+      const weiter = () => r.readEntries(async es => { if(!es.length){ for(const e of alle) await lese(e, pfad + entry.name + "/"); res(); } else { alle.push(...es); weiter(); } }, () => res()); weiter(); }
+  });
+  const es = [...items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  for(const e of es) await lese(e, "");
+  return out;
+}
+async function auspacken(liste){
+  const out = [];
+  for(const x of liste){
+    if(/\.zip$/i.test(x.name)){
+      quelle = quelle || x.name;
+      if(!window.JSZip){ out.push({name:x.name, fehler:"ZIP konnte hier nicht geöffnet werden. Bitte entpacken und den Ordner wählen."}); continue; }
+      const z = await JSZip.loadAsync(x.file);
+      for(const [pfad, e] of Object.entries(z.files)){
+        const b = pfad.split("/").pop();
+        if(e.dir || pfad.includes("__MACOSX") || !b || b.startsWith("._") || /^(\.ds_store|thumbs\.db|desktop\.ini)$/i.test(b)) continue;
+        if(!quelle || quelle === x.name){ const oben = pfad.split("/"); if(oben.length > 1 && behaelter(oben[0])) quelle = oben[0]; }
+        out.push({name:b, pfad, lesen: () => e.async("arraybuffer")});
+      }
+    } else if(!/^(\.ds_store|thumbs\.db|desktop\.ini)$/i.test(x.name) && !x.name.startsWith("._")){
+      out.push({name:x.name, pfad:x.pfad || x.name, lesen: () => x.file.arrayBuffer()});
+    }
+  }
+  return out;
+}
+
+/* ---------- Prüfen ---------- */
+const mmss = s => { s = Math.round(s); return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0"); };
+async function pruefe(dateien){
+  const prog = $("prog"), bar = prog.firstElementChild; prog.style.display = "block";
+  const fehler = [], hinweise = [];
+  const ergebnisse = [];
+  const bk = quelle ? behaelter(quelle) : null;
+  for(let k=0;k<dateien.length;k++){
+    const d = dateien[k]; bar.style.width = Math.round(k/dateien.length*100) + "%";
+    const e = {name:d.name, probleme:[], rolle:null, fmt:"", dauer:null, beat:false};
+    ergebnisse.push(e);
+    if(d.fehler){ e.probleme.push(d.fehler); continue; }
+    const end = (d.name.match(/\.[^.]+$/) || [""])[0].toLowerCase();
+    if([".txt",".rtf"].includes(end)){ e.info = true; e.fmt = "Info-Datei"; continue; }
+    if(!AUDIO.includes(end)){ e.probleme.push("Keine Audiodatei (z. B. Projektdatei). Bitte nur die exportierten Spuren hochladen."); continue; }
+    const t = zerlege(d.name); e.teile = t;
+    if(t && t.rolle) e.rolle = t.rolle;
+    else {
+      const k = klassifiziere(d.name);
+      if(k && (k.art === "ref" || k.art === "leer")){ e.ignoriert = k.art === "ref" ? "Referenz-Mix, wird nicht verwendet" : "stumme Kopie, wird nicht verwendet"; e.fmt = e.ignoriert; continue; }
+      if(k && k.art === "beat") e.rolle = "Beat";
+      else if(k){ e.klasse = k; e.rolle = ZIEL[k.sektion + "|" + k.typ] + "?"; }
+      else e.probleme.push("Spur nicht zuzuordnen („" + d.name + "“). Benenne sie z. B. Main, Double L, Hook Main, Adlibs oder Beat.");
+    }
+    e.beat = e.rolle === "Beat";
+    let buf; try { buf = await d.lesen(); } catch(x){ e.probleme.push("Datei nicht lesbar. Bitte neu exportieren."); continue; }
+    if(end === ".mp3"){
+      try { const m = mp3Info(buf); e.fmt = "MP3 " + m.kbit + " kbit/s"; e.dauer = m.dauer; e.mp3 = true;
+        if(!e.beat) e.probleme.push("Vocals bitte als WAV (24 Bit) exportieren, nicht als MP3.");
+        else { if(m.kbit < 315) e.probleme.push("Beat hat nur " + m.kbit + " kbit/s. Bitte WAV oder MP3 mit 320 kbit/s."); if(m.ch !== 2) e.probleme.push("Beat ist mono. Bitte als Stereo-Datei."); }
+      } catch(x){ e.probleme.push(String(x)); }
+      continue;
+    }
+    if(end !== ".wav"){ e.probleme.push("Format " + end + " geht nicht. Bitte als WAV exportieren."); continue; }
+    let w; try { w = wavInfo(buf); } catch(x){ e.probleme.push(String(x) + ". Bitte neu als WAV exportieren."); continue; }
+    e.fmt = "WAV " + w.bits + " Bit, " + (w.rate/1000).toLocaleString("de-DE") + " kHz, " + (w.ch === 2 ? "stereo" : w.ch === 1 ? "mono" : w.ch + " Kanäle");
+    e.dauer = w.dauer; e.rate = w.rate;
+    if(![44100,48000].includes(w.rate)) e.probleme.push("Abtastrate " + w.rate + " Hz. Bitte 44,1 oder 48 kHz.");
+    if(e.beat){ if(w.ch !== 2) e.probleme.push("Beat ist mono. Bitte als Stereo-Datei."); }
+    else if(![24,32].includes(w.bits)) e.probleme.push(w.bits + " Bit. Bitte mit 24 Bit exportieren.");
+    const cp = clipUndPegel(buf, w);
+    if(cp.clip && !e.beat) e.probleme.push("Übersteuert (Clipping). Bitte leiser bzw. ohne Übersteuerung exportieren.");
+    if(cp.peak < 0.001){ e.ignoriert = "leer, wird nicht verwendet"; e.fmt += " · leer"; e.dauer = null; }
+    await new Promise(r => setTimeout(r));
+  }
+  bar.style.width = "100%"; setTimeout(() => prog.style.display = "none", 400);
+
+  // Rollen vergeben: feste zuerst, dann freie Namen nach Priorität, Überzählige auf Safety1-3
+  const belegt = new Set(ergebnisse.filter(e => !e.ignoriert && e.rolle && !e.rolle.endsWith("?")).map(e => e.rolle));
+  const kand = ergebnisse.filter(e => !e.ignoriert && e.rolle && e.rolle.endsWith("?"))
+    .sort((a,b) => ((a.klasse||{}).prio||1) - ((b.klasse||{}).prio||1) || RANG[a.rolle.slice(0,-1)] - RANG[b.rolle.slice(0,-1)] || a.name.localeCompare(b.name));
+  const rest = [];
+  for(const e of kand){ const b = e.rolle.slice(0,-1); let f = null;
+    if(b === "Main" || b === "HookMain") f = belegt.has(b) ? null : b;
+    else for(let i=1;i<=MAX[b];i++) if(!belegt.has(b+i)){ f = b+i; break; }
+    if(f){ e.rolle = f; belegt.add(f); } else rest.push(e); }
+  for(const e of rest){ const f = Array.from({length:12}, (_, i) => "Safety" + (i+1)).find(r => !belegt.has(r));
+    if(f){ e.rolle = f; belegt.add(f); } else { e.rolle = null; e.ueber = true; } }
+  const gesehen = {};
+  for(const e of ergebnisse){ if(e.ignoriert || !e.rolle || e.rolle === "Beat") continue;
+    if(gesehen[e.rolle]) e.probleme.push("Rolle " + e.rolle + " kommt doppelt vor (auch: " + gesehen[e.rolle] + ")."); else gesehen[e.rolle] = e.name; }
+
+  // Artist und Song
+  const mitNamen = ergebnisse.map(e => e.teile).filter(t => t && t.artist);
+  let artist = mitNamen[0] ? mitNamen[0].artist : bk ? bk.artist : null;
+  let song = mitNamen[0] ? mitNamen[0].song : bk ? bk.song : null;
+  if(mitNamen.length){ const keys = new Set(mitNamen.map(t => norm(t.artist) + "|" + norm(t.song))); if(keys.size > 1) fehler.push("Die Dateien gehören zu verschiedenen Songs. Bitte jeden Song einzeln prüfen und hochladen."); }
+  if(!artist) fehler.push("Artist und Songtitel fehlen. Nenne den Ordner oder das ZIP „Artistname_Songtitel“, z. B. MaxB_Sommer.");
+  const eingabe = $("artist").value.trim();
+  if(eingabe && artist && norm(eingabe) !== norm(artist)) fehler.push("Der Artistname in den Dateien („" + artist + "“) weicht von deiner Eingabe („" + eingabe + "“) ab. Er muss so geschrieben sein wie beim Kauf.");
+
+  // Song als Ganzes
+  const audio = ergebnisse.filter(e => !e.ignoriert && e.dauer != null);
+  const beats = ergebnisse.filter(e => e.beat && !e.ignoriert), vocals = ergebnisse.filter(e => !e.ignoriert && !e.info && !e.beat && (e.rolle || e.ueber || e.dauer != null));
+  if(!beats.length) fehler.push("Der Beat fehlt (eine Stereo-Datei, z. B. „…_Beat.wav“).");
+  if(beats.length > 1) fehler.push("Es gibt " + beats.length + " Beat-Dateien. Erlaubt ist genau eine.");
+  if(!vocals.length) fehler.push("Es fehlen die Vocal-Spuren.");
+  if(vocals.length > 18) fehler.push("Es sind " + vocals.length + " Vocal-Spuren, enthalten sind höchstens 15. Fasse ähnliche Spuren zusammen (z. B. mehrere Doubles oder Fill-ins auf eine Spur).");
+  const raten = new Set(audio.filter(e => e.rate).map(e => e.rate));
+  if(raten.size > 1) fehler.push("Die Dateien haben unterschiedliche Abtastraten. Bitte alle gleich exportieren.");
+  if(audio.length){
+    const ws = audio.filter(e => !e.mp3).map(e => e.dauer).sort((a,b) => a-b); const all = ws.length ? ws : audio.map(e => e.dauer).sort((a,b)=>a-b);
+    const ref = all[Math.floor(all.length/2)];
+    if(ref > 241) fehler.push("Der Song ist " + mmss(ref) + " lang, enthalten sind höchstens 4:00 Minuten.");
+    for(const e of audio){ const tol = e.mp3 ? 0.6 : 0.5; if(Math.abs(e.dauer - ref) > tol) e.probleme.push("Länge " + mmss(e.dauer) + " statt " + mmss(ref) + ". Alle Spuren ab Takt 1 bis zum gleichen Ende exportieren."); }
+  }
+
+  zeige(ergebnisse, fehler, artist, song);
+}
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function zeige(erg, fehler, artist, song){
+  const nDatei = erg.filter(e => e.probleme.length).length;
+  const ok = !fehler.length && !nDatei;
+  const u = $("urteil"); u.style.display = "block"; u.className = ok ? "ok" : "bad";
+  const ziel = artist ? esc(artist.replace(/\s+/g,"")) + "_" + esc(song) : "";
+  u.innerHTML = ok
+    ? "<h2>Alles passt – du kannst hochladen.</h2><p>Lade alle Dateien dieses Songs auf einmal hoch, am besten als ZIP, mit derselben E-Mail wie bei der Bestellung." + (ziel ? " Die Spuren werden automatisch einheitlich als <b>" + ziel + "_Rolle</b> benannt." : "") + "</p><p><a class='btn go' href='" + UPLOAD + "'>Zum Upload</a></p>"
+    : "<h2>" + (fehler.length + nDatei) + (fehler.length + nDatei === 1 ? " Punkt" : " Punkte") + " noch korrigieren</h2>" +
+      (fehler.length ? "<ul>" + fehler.map(f => "<li>" + esc(f) + "</li>").join("") + "</ul>" : "") +
+      (nDatei ? "<p>" + nDatei + (nDatei === 1 ? " Datei hat" : " Dateien haben") + " ein Problem, Details unten in Rot.</p>" : "") +
+      "<p class='hint'>Korrigiere die Punkte im Programm, exportiere neu und prüfe noch einmal. Erst dann hochladen.</p>";
+  const s = $("spuren"); s.style.display = "block";
+  s.innerHTML = "<div class='zeile kopf'><span></span><span>Datei</span><span>Erkannt als</span><span>Format</span><span class='dauer'>Länge</span></div>" +
+    erg.sort((a,b) => (ROLLEN.indexOf(a.rolle)+99)%99 - (ROLLEN.indexOf(b.rolle)+99)%99 || a.name.localeCompare(b.name)).map(e =>
+      "<div class='zeile'><i class='lamp" + (e.probleme.length ? " bad" : (e.info || e.ignoriert) ? " warn" : "") + "'></i><span class='name'>" + esc(e.name) + "</span><span class='rolle'>" + esc(e.ignoriert ? "nicht verwendet" : e.rolle || (e.info ? "Info" : e.ueber ? "zu viele Spuren" : "–")) + "</span><span class='fmt'>" + esc(e.fmt) + "</span><span class='dauer'>" + (e.dauer != null ? mmss(e.dauer) : "") + "</span>" +
+      (e.probleme.length ? "<div class='err'>" + e.probleme.map(esc).join("<br>") + "</div>" : "") + "</div>").join("");
+  u.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"});
+}
+
+async function los(liste){
+  $("urteil").style.display = "none"; $("spuren").style.display = "none";
+  try { const d = await auspacken(liste); if(!d.length) throw 0; await pruefe(d); }
+  catch(x){ const u = $("urteil"); u.style.display = "block"; u.className = "bad"; u.innerHTML = "<h2>Keine Spuren gefunden</h2><p>Wähle den Ordner mit deinen exportierten Spuren oder das ZIP.</p>"; }
+}
+try { const a = localStorage.getItem("af_artist"); if(a) $("artist").value = a; } catch(x){}
+$("artist").addEventListener("change", () => { try { localStorage.setItem("af_artist", $("artist").value); } catch(x){} });
+const drop = $("drop");
+$("bOrdner").addEventListener("click", ev => { ev.stopPropagation(); $("iOrdner").click(); });
+$("bDateien").addEventListener("click", ev => { ev.stopPropagation(); $("iDateien").click(); });
+drop.addEventListener("click", () => $("iDateien").click());
+drop.addEventListener("keydown", ev => { if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); $("iDateien").click(); } });
+$("iOrdner").addEventListener("change", ev => { const fs = [...ev.target.files]; quelle = fs[0] ? fs[0].webkitRelativePath.split("/")[0] : null; los(fs.map(f => ({name:f.name, pfad:f.webkitRelativePath, file:f}))); ev.target.value = ""; });
+$("iDateien").addEventListener("change", ev => { quelle = null; los([...ev.target.files].map(f => ({name:f.name, file:f}))); ev.target.value = ""; });
+["dragenter","dragover"].forEach(t => drop.addEventListener(t, ev => { ev.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(t => drop.addEventListener(t, ev => { ev.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", async ev => { const l = await vonDrop(ev.dataTransfer.items); los(l); });
+}
+</script>
+</body>
+</html>
